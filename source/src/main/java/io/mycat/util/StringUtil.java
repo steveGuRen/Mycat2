@@ -3,6 +3,7 @@ package io.mycat.util;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import io.mycat.mycat2.AbstractMySQLSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,12 +91,13 @@ public final class StringUtil {
         final StringBuilder out = new StringBuilder(length * 4);
         final int end = offset + length;
         int p    = offset;
-        int rows = length / 8;
+        int wide = 32;
+        int rows = length / wide;
 
         // rows
         for (int i = 0; (i < rows) && (p < end); i++) {
             // - hex string in a line
-            for (int j = 0, k = p; j < 8; j++, k++) {
+            for (int j = 0, k = p; j < wide; j++, k++) {
                 final String hexs = Integer.toHexString(g.get(k) & 0xff);
                 if (hexs.length() == 1) {
                 	out.append('0');
@@ -104,7 +106,7 @@ public final class StringUtil {
             }
             out.append("    ");
             // - ascii char in a line
-            for (int j = 0; j < 8; j++, p++) {
+            for (int j = 0; j < wide; j++, p++) {
                 final int b = 0xff & g.get(p);
                 if (b > 32 && b < 127) {
                 	out.append((char) b);
@@ -127,7 +129,7 @@ public final class StringUtil {
         }
         LOGGER.debug("offset = {}, length = {}, end = {}, n = {}", offset, length, end, n);
         // padding hex string in line
-        for (int i = n; i < 8; i++) {
+        for (int i = n; i < wide; i++) {
         	out.append("   ");
         }
         out.append("    ");
@@ -159,7 +161,9 @@ public final class StringUtil {
     public final static String dumpAsHex(final ByteBuffer buffer, final int offset, final int length){
     	return (dumpAsHex(new ByteBufferGetable(buffer), offset, length));
     }
-    
+	public final static String dumpMySQLPackageInfAsHex(AbstractMySQLSession mySQLSession){
+		return (dumpAsHex(new ByteBufferGetable(mySQLSession.proxyBuffer.getBuffer()), mySQLSession.curMSQLPackgInf.startPos, mySQLSession.curMSQLPackgInf.endPos));
+	}
     public final static boolean isEmpty(String str) {
     	return str == null || str == "";
     }

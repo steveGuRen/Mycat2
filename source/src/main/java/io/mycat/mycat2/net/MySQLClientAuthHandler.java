@@ -1,12 +1,13 @@
 package io.mycat.mycat2.net;
 
-import io.mycat.mycat2.AbstractMySQLSession.CurrPacketType;
+
 import io.mycat.mycat2.MycatConfig;
 import io.mycat.mycat2.MycatSession;
 import io.mycat.mycat2.beans.conf.FireWallBean;
 import io.mycat.mycat2.beans.conf.UserBean;
 import io.mycat.mycat2.beans.conf.UserConfig;
 import io.mycat.mysql.packet.AuthPacket;
+import io.mycat.mysql.packet.CurrPacketType;
 import io.mycat.mysql.packet.ErrorPacket;
 import io.mycat.proxy.ConfigEnum;
 import io.mycat.proxy.NIOHandler;
@@ -39,8 +40,8 @@ public class MySQLClientAuthHandler implements NIOHandler<MycatSession> {
 	@Override
 	public void onSocketRead(MycatSession session) throws IOException {
 		ProxyBuffer frontBuffer = session.getProxyBuffer();
-		if (session.readFromChannel() == false
-				|| CurrPacketType.Full != session.resolveMySQLPackage(frontBuffer, session.curMSQLPackgInf, false)) {
+		if (!session.readFromChannel()
+				|| CurrPacketType.Full != session.resolveMySQLPackage(false)) {
 			return;
 		}
 
@@ -77,7 +78,7 @@ public class MySQLClientAuthHandler implements NIOHandler<MycatSession> {
 //				return;
 //			}
 
-			// check schema
+            // check mycatSchema
 			switch (checkSchema(userBean, auth.database)) {
 				case ErrorCode.ER_BAD_DB_ERROR:
 					failure(session, ErrorCode.ER_BAD_DB_ERROR, "Unknown database '" + auth.database + "'");
@@ -87,17 +88,17 @@ public class MySQLClientAuthHandler implements NIOHandler<MycatSession> {
 					failure(session, ErrorCode.ER_DBACCESS_DENIED_ERROR, s);
 					break;
 				default:
-					// set schema
+                    // set mycatSchema
 					if (auth.database == null) {
-						session.schema = (userBean.getSchemas() == null) ?
+                        session.mycatSchema = (userBean.getSchemas() == null) ?
 								config.getDefaultSchemaBean() : config.getSchemaBean(userBean.getSchemas().get(0));
 					} else {
-						session.schema = config.getSchemaBean(auth.database);
+                        session.mycatSchema = config.getSchemaBean(auth.database);
 					}
-                    if (Objects.isNull(session.schema)) {
-                        logger.error(" schema:{} can not match user: {}", session.schema, auth.user);
+                    if (Objects.isNull(session.mycatSchema)) {
+                        logger.error(" mycatSchema:{} can not match user: {}", session.mycatSchema, auth.user);
                     }
-					logger.debug("set schema: {} for user: {}", session.schema, auth.user);
+                    logger.debug("set mycatSchema: {} for user: {}", session.mycatSchema, auth.user);
 					if (success(session, auth)) {
 						session.clientUser=auth.user;//设置session用户
 						session.proxyBuffer.reset();
@@ -111,7 +112,7 @@ public class MySQLClientAuthHandler implements NIOHandler<MycatSession> {
 		}
 	}
 
-	private boolean checkUser(MycatSession session, UserConfig userConfig, UserBean userBean) throws IOException {
+    private boolean checkUser(MycatSession session, UserConfig userConfig, UserBean userBean) {
 		if (userBean == null) {
 			return false;
 		}
@@ -197,12 +198,12 @@ public class MySQLClientAuthHandler implements NIOHandler<MycatSession> {
 		session.responseOKOrError(errorPacket);
 	}
 
-	private boolean success(MycatSession session, AuthPacket auth) throws IOException {
+    private boolean success(MycatSession session, AuthPacket auth) {
 		// 设置字符集编码
 		int charsetIndex = (auth.charsetIndex & 0xff);
 		// 保存字符集索引
 		session.charSet.charsetIndex = charsetIndex;
-//		ProxyRuntime.INSTANCE.getConfig().getMySQLRepBean(session.schema.getDefaultDN().getReplica()).getMetaBeans().get(0).INDEX_TO_CHARSET.get(charsetIndex);
+//		ProxyRuntime.INSTANCE.getConfig().getMySQLRepBean(session.mycatSchema.getDefaultDN().getReplica()).getMetaBeans().get(0).INDEX_TO_CHARSET.get(charsetIndex);
 		logger.debug("login success, charsetIndex = {}", charsetIndex);
 		return true;
 	}
